@@ -1,0 +1,126 @@
+import tkinter as tk
+from tkinter import messagebox
+import pyautogui
+import random
+import time
+import threading
+import keyboard
+
+recorded_position = None
+listening_for_f12 = False  # F12登録モード中かどうか
+
+# GUIの座標ラベル更新
+def update_position_label():
+    if recorded_position:
+        pos_label.config(text=f"記録座標: ({recorded_position.x}, {recorded_position.y})")
+    else:
+        pos_label.config(text="記録座標: なし")
+
+# F12キー押下時の処理
+def on_f12():
+    global recorded_position, listening_for_f12
+    if listening_for_f12:
+        recorded_position = pyautogui.position()
+        update_position_label()
+        messagebox.showinfo("座標記録", f"クリック座標を記録しました: {recorded_position}")
+        listening_for_f12 = False  # 一度登録したら無効化
+
+# F12ホットキー監視
+def start_listening():
+    keyboard.add_hotkey('f12', on_f12)
+
+# 座標登録モードを有効に
+def enable_f12_registration():
+    global listening_for_f12
+    listening_for_f12 = True
+    messagebox.showinfo("登録モード", "F12キーを押して座標を登録してください。")
+
+# 座標を削除
+def clear_recorded_position():
+    global recorded_position
+    recorded_position = None
+    update_position_label()
+    messagebox.showinfo("削除", "記録された座標を削除しました。")
+
+# 実行ボタン処理
+def start_clicking():
+    global recorded_position
+    if not recorded_position:
+        messagebox.showerror("エラー", "F12で座標を記録してください。")
+        return
+
+    try:
+        min_delay = int(entry_min_time.get())
+        max_delay = int(entry_max_time.get())
+        max_x_offset = int(entry_x_offset.get())
+        max_y_offset = int(entry_y_offset.get())
+
+        if min_delay > max_delay:
+            raise ValueError("最小秒数は最大秒数以下にしてください。")
+    except ValueError as e:
+        messagebox.showerror("エラー", f"入力エラー: {e}")
+        return
+
+    def click_task():
+        delay = random.randint(min_delay, max_delay)
+        print(f"{delay}秒待機中...")
+        time.sleep(delay)
+
+        offset_x = random.randint(-max_x_offset, max_x_offset)
+        offset_y = random.randint(-max_y_offset, max_y_offset)
+
+        final_x = recorded_position.x + offset_x
+        final_y = recorded_position.y + offset_y
+
+        pyautogui.click(final_x, final_y)
+        print(f"クリックしました: ({final_x}, {final_y})")
+
+    threading.Thread(target=click_task).start()
+
+# --- GUI構築 ---
+root = tk.Tk()
+root.title("オートクリックツール")
+
+# 秒数入力
+tk.Label(root, text="最小秒数").grid(row=0, column=0)
+entry_min_time = tk.Entry(root)
+entry_min_time.insert(0, "60")  # ← 初期値を60に変更
+entry_min_time.grid(row=0, column=1)
+
+tk.Label(root, text="最大秒数").grid(row=1, column=0)
+entry_max_time = tk.Entry(root)
+entry_max_time.insert(0, "120")  # ← 初期値を120に変更
+entry_max_time.grid(row=1, column=1)
+
+# ランダムずれ入力
+tk.Label(root, text="Xずれ最大値").grid(row=2, column=0)
+entry_x_offset = tk.Entry(root)
+entry_x_offset.insert(0, "30")  # ← 初期値を30に変更
+entry_x_offset.grid(row=2, column=1)
+
+tk.Label(root, text="Yずれ最大値").grid(row=3, column=0)
+entry_y_offset = tk.Entry(root)
+entry_y_offset.insert(0, "30")  # ← 初期値を30に変更
+entry_y_offset.grid(row=3, column=1)
+
+# 座標表示ラベル
+pos_label = tk.Label(root, text="記録座標: なし", fg="blue")
+pos_label.grid(row=4, column=0, columnspan=2)
+
+# 実行ボタン
+btn_click = tk.Button(root, text="クリック実行", command=start_clicking)
+btn_click.grid(row=5, column=0, columnspan=2, pady=5)
+
+# 座標登録ボタン
+btn_register = tk.Button(root, text="座標登録モード(F12有効)", command=enable_f12_registration)
+btn_register.grid(row=6, column=0, columnspan=2, pady=2)
+
+# 座標削除ボタン
+btn_clear = tk.Button(root, text="座標削除", command=clear_recorded_position)
+btn_clear.grid(row=7, column=0, columnspan=2, pady=2)
+
+# F12キー監視スタート
+threading.Thread(target=start_listening, daemon=True).start()
+
+root.mainloop()
+
